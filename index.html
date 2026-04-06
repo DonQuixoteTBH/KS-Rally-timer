@@ -149,6 +149,7 @@
 
         function playSilentLoop() {
             if (!isStealthEnabled || !audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const source = audioCtx.createBufferSource();
             source.buffer = silentBuffer;
             source.connect(audioCtx.destination);
@@ -261,14 +262,15 @@
 
         function beep() {
             if (!audioCtx) initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
 
-            osc.type = 'square';
-            osc.frequency.value = 440;
+            osc.type = 'sine';
+            osc.frequency.value = 880;
 
             gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(1.0, audioCtx.currentTime + 0.1);
+            gain.gain.exponentialRampToValueAtTime(1.0, audioCtx.currentTime + 0.01);
 
             osc.connect(gain);
             gain.connect(audioCtx.destination);
