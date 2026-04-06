@@ -18,9 +18,36 @@
         .status { font-size: 0.8rem; color: #888; margin-bottom: 20px; }
         .active { color: #00E5FF !important; }
         .target-section { margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
-        .target-inputs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
-        .target-input { background: #222; border: 1px solid #333; color: white; border-radius: 8px; padding: 8px 0; text-align: center; cursor: pointer; font-size: 12px; }
-        .target-input.selected { background: #00E5FF; color: black; border: none; font-weight: bold; }
+
+        /* Compass Layout */
+        .target-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+            max-width: 320px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .target-input {
+            background: #222;
+            border: 1px solid #333;
+            color: white;
+            border-radius: 8px;
+            padding: 14px 0;
+            text-align: center;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .target-input.selected { background: #00E5FF; color: black; border: none; box-shadow: 0 0 15px rgba(0,229,255,0.4); }
+        .empty-cell { visibility: hidden; }
+
         input[type="text"] { width: 100%; background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; box-sizing: border-box; font-family: monospace; font-size: 1.1rem; text-align: center; margin-bottom: 15px; }
         button { background: #00E5FF; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; cursor: pointer; color: black; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
         button:active { transform: scale(0.98); }
@@ -44,14 +71,21 @@
         <div class="status" id="statusText">Awaiting Target Data...</div>
 
         <div class="target-section">
-            <p style="color: #666; font-size: 0.7rem; margin-bottom: 10px; text-transform: uppercase;">Your Travel Times (HH:MM:SS)</p>
-            <div class="target-inputs" id="targetLabels">
-                <div class="target-input" id="t1" onclick="selectTarget(1)">T1</div>
-                <div class="target-input" id="t2" onclick="selectTarget(2)">T2</div>
-                <div class="target-input" id="t3" onclick="selectTarget(3)">T3</div>
-                <div class="target-input" id="t4" onclick="selectTarget(4)">T4</div>
-                <div class="target-input" id="t5" onclick="selectTarget(5)">T5</div>
+            <p style="color: #666; font-size: 0.7rem; margin-bottom: 15px; text-transform: uppercase;">Compass Selection</p>
+            <div class="target-inputs">
+                <div class="empty-cell"></div>
+                <div class="target-input" id="t1" onclick="selectTarget(1)">North</div>
+                <div class="empty-cell"></div>
+
+                <div class="target-input" id="t4" onclick="selectTarget(4)">West</div>
+                <div class="target-input" id="t5" onclick="selectTarget(5)">Castle</div>
+                <div class="target-input" id="t3" onclick="selectTarget(3)">East</div>
+
+                <div class="empty-cell"></div>
+                <div class="target-input" id="t2" onclick="selectTarget(2)">South</div>
+                <div class="empty-cell"></div>
             </div>
+            <p style="color: #666; font-size: 0.6rem; margin-bottom: 10px; text-transform: uppercase;">Travel Time (HH:MM:SS)</p>
             <input type="text" id="travelInput" placeholder="00:00:00" maxlength="8">
         </div>
 
@@ -75,7 +109,7 @@
 
         let currentTeam = "";
         let nextBeepTime = null;
-        let selectedIndex = 1;
+        let selectedIndex = 5;
         let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
 
         let audioCtx = null;
@@ -88,7 +122,7 @@
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                silentBuffer = audioCtx.createBuffer(1, 44100, 44100); // 1 second silent buffer
+                silentBuffer = audioCtx.createBuffer(1, 44100, 44100);
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
@@ -97,7 +131,6 @@
             initAudio();
             isStealthEnabled = !isStealthEnabled;
             const btn = document.getElementById('stealthBtn');
-
             if (isStealthEnabled) {
                 btn.innerText = "BACKGROUND SYNC: ACTIVE";
                 btn.classList.add('active');
@@ -113,19 +146,17 @@
             const source = audioCtx.createBufferSource();
             source.buffer = silentBuffer;
             source.connect(audioCtx.destination);
-            source.onended = playSilentLoop; // Infinite loop
+            source.onended = playSilentLoop;
             source.start();
         }
 
         function startApp() {
             currentTeam = document.getElementById('teamInput').value.toUpperCase();
             if (!currentTeam) return;
-
             document.getElementById('setupView').style.display = 'none';
             document.getElementById('mainView').style.display = 'block';
             document.getElementById('headerTeam').innerText = "SQUAD " + currentTeam;
-            document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
-
+            updateTargetUI();
             initAudio();
             listenToFirebase();
         }
@@ -139,9 +170,8 @@
             database.ref('teams/' + currentTeam).on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (!data) return;
-
                 const targetTime = data.targetTime;
-                const targetIdx = data.targetIndex || 1;
+                const targetIdx = data.targetIndex || 5;
                 const isStarted = data.isStarted;
                 const prepMins = data.prepMins || 1;
 
@@ -150,7 +180,8 @@
 
                 if (isStarted && targetTime) {
                     calculateNextBeep(targetTime, travelTimes[selectedIndex - 1], prepMins);
-                    document.getElementById('statusText').innerText = "LINKED - Target " + selectedIndex;
+                    const names = ["NORTH", "SOUTH", "EAST", "WEST", "CASTLE"];
+                    document.getElementById('statusText').innerText = "LINKED - " + names[selectedIndex-1];
                     document.getElementById('statusText').classList.add('active');
                 } else {
                     nextBeepTime = null;
@@ -166,7 +197,6 @@
                 const targetDate = new Date(now.getTime());
                 const parts = targetStr.split(':');
                 targetDate.setUTCHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0);
-
                 const tParts = travelStr.split(':');
                 if (tParts.length === 3) {
                     targetDate.setUTCHours(targetDate.getUTCHours() - parseInt(tParts[0]));
@@ -206,7 +236,6 @@
             const m = now.getUTCMinutes().toString().padStart(2, '0');
             const s = now.getUTCSeconds().toString().padStart(2, '0');
             document.getElementById('currentTime').innerText = `${h}:${m}:${s}`;
-
             if (nextBeepTime) {
                 const diff = nextBeepTime - now.getTime();
                 if (diff > 0) {
@@ -215,25 +244,17 @@
                     const minRem = Math.floor(diff / 60000);
                     document.getElementById('countdown').innerText = "BEEP IN: " + minRem.toString().padStart(2, '0') + ":" + secRem.toString().padStart(2, '0');
                 } else if (diff > -2000) {
-                    beep();
-                    nextBeepTime = null;
-                    document.getElementById('countdown').style.display = 'none';
-                } else {
-                    document.getElementById('countdown').style.display = 'none';
-                }
-            } else {
-                document.getElementById('countdown').style.display = 'none';
-            }
+                    beep(); nextBeepTime = null; document.getElementById('countdown').style.display = 'none';
+                } else { document.getElementById('countdown').style.display = 'none'; }
+            } else { document.getElementById('countdown').style.display = 'none'; }
         }, 500);
 
         function beep() {
             if (!audioCtx) initAudio();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.frequency.value = 800;
-            osc.start();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = 800; osc.start();
             setTimeout(() => osc.stop(), 800);
         }
     </script>
