@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rally Web Dashboard</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body {
+            background: #0A0A0A; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center;
+        }
+        .container { width: 90%; max-width: 400px; background: #1A1A1A; padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        h1 { color: #00E5FF; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
+        .clock { font-size: 3rem; font-weight: 900; font-family: monospace; color: #FFFFFF; margin: 10px 0; }
+        .status { font-size: 0.8rem; color: #888; margin-bottom: 20px; }
+        .active { color: #00E5FF !important; }
+        .target-section { margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
+        .target-inputs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
+        .target-input { background: #222; border: 1px solid #333; color: white; border-radius: 8px; padding: 8px 0; text-align: center; cursor: pointer; font-size: 12px; }
+        .target-input.selected { background: #00E5FF; color: black; border: none; font-weight: bold; }
+        input[type="text"] { width: 100%; background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; box-sizing: border-box; font-family: monospace; font-size: 1.1rem; text-align: center; margin-bottom: 15px; }
+        button { background: #00E5FF; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; cursor: pointer; color: black; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
+        button:active { transform: scale(0.98); }
+        .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; }
+        .setup-view { padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="setupView">
+        <h1>Sync Access</h1>
+        <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Enter your squad unit to begin.</p>
+        <input type="text" id="teamInput" placeholder="SQUAD UNIT (e.g. T1)" value="T1">
+        <button onclick="startApp()">Link Unit</button>
+    </div>
+
+    <div class="container" id="mainView" style="display: none;">
+        <h1 id="headerTeam">SQUAD UNIT</h1>
+        <div class="clock" id="currentTime">00:00:00</div>
+        <div class="status" id="statusText">Awaiting Target Data...</div>
+
+        <div class="target-section">
+            <p style="color: #666; font-size: 0.7rem; margin-bottom: 10px; text-transform: uppercase;">Your Travel Times (HH:MM:SS)</p>
+            <div class="target-inputs" id="targetLabels">
+                <div class="target-input" id="t1">T1</div>
+                <div class="target-input" id="t2">T2</div>
+                <div class="target-input" id="t3">T3</div>
+                <div class="target-input" id="t4">T4</div>
+                <div class="target-input" id="t5">T5</div>
+            </div>
+            <input type="text" id="travelInput" placeholder="00:00:00" maxlength="8">
+        </div>
+
+        <div class="countdown" id="countdown">BEEP IN: 00:00</div>
+        <p style="color: #444; font-size: 0.7rem; margin-top: 20px;">Tap anywhere to enable sound</p>
+    </div>
+
+    <script>
+        // CONFIG: REPLACE THE "databaseURL" BELOW with the link from your Firebase Console
+        const firebaseConfig = {
+            apiKey: "AIzaSyAVRDYoTzgL9JT3CsCWu6Dm_JP8ppyndhU",
+            databaseURL: "https://console.firebase.google.com/project/ks-rally-timer/database/ks-rally-timer-default-rtdb/data/~2F?fb_gclid=CjwKCAjw1N7NBhAoEiwAcPchp0NmWgaq8pHmJbSfth7afl3099XQTaX3gGmETpeJgK0v67mPOG1luhoCBBcQAvD_BwE&fb_utm_campaign=Cloud-SS-DR-Firebase-FY26-global-gsem-1713590&fb_utm_content=text-ad&fb_utm_medium=cpc&fb_utm_source=google&fb_utm_term=KW_firebase",
+            projectId: "ks-rally-timer",
+            storageBucket: "ks-rally-timer.firebasestorage.app",
+            appId: "1:181688095663:android:88b598bbb1bc174363555a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let currentTeam = "";
+        let nextBeepTime = null;
+        let selectedIndex = 1;
+        let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
+
+        // Initialize from storage
+        const storedTimes = localStorage.getItem('travelTimes');
+        if (storedTimes) travelTimes = JSON.parse(storedTimes);
+
+        function startApp() {
+            currentTeam = document.getElementById('teamInput').value.toUpperCase();
+            if (!currentTeam) return;
+
+            document.getElementById('setupView').style.display = 'none';
+            document.getElementById('mainView').style.display = 'block';
+            document.getElementById('headerTeam').innerText = "SQUAD " + currentTeam;
+            document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
+
+            // Audio context start (User interaction required)
+            document.body.onclick = () => { if(window.AudioContext || window.webkitAudioContext) new (window.AudioContext || window.webkitAudioContext)(); };
+
+            listenToFirebase();
+        }
+
+        function listenToFirebase() {
+            database.ref('teams/' + currentTeam).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                const targetTime = data.targetTime; // "HH:mm:ss"
+                const targetIdx = data.targetIndex || 1;
+                const isStarted = data.isStarted;
+                const prepMins = data.prepMins || 1;
+
+                selectedIndex = targetIdx;
+                updateTargetUI();
+
+                if (isStarted && targetTime) {
+                    calculateNextBeep(targetTime, travelTimes[selectedIndex - 1], prepMins);
+                    document.getElementById('statusText').innerText = "LINKED - Target " + selectedIndex;
+                    document.getElementById('statusText').classList.add('active');
+                } else {
+                    nextBeepTime = null;
+                    document.getElementById('statusText').innerText = "STANDBY - Waiting for Leader";
+                    document.getElementById('statusText').classList.remove('active');
+                }
+            });
+        }
+
+        function calculateNextBeep(targetStr, travelStr, prep) {
+            try {
+                const now = new Date();
+                const nowUTC = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+
+                const parts = targetStr.split(':');
+                const targetDate = new Date(nowUTC);
+                targetDate.setUTCHours(parts[0], parts[1], parts[2], 0);
+
+                if (targetDate.getTime() < nowUTC.getTime() - 600000) targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+
+                const tParts = travelStr.split(':');
+                if (tParts.length === 3) {
+                    targetDate.setUTCHours(targetDate.getUTCHours() - parseInt(tParts[0]));
+                    targetDate.setUTCMinutes(targetDate.getUTCMinutes() - parseInt(tParts[1]));
+                    targetDate.setUTCSeconds(targetDate.getUTCSeconds() - parseInt(tParts[2]));
+                }
+
+                targetDate.setUTCMinutes(targetDate.getUTCMinutes() - prep);
+                nextBeepTime = targetDate.getTime();
+            } catch (e) { console.error(e); }
+        }
+
+        function updateTargetUI() {
+            for (let i = 1; i <= 5; i++) {
+                const el = document.getElementById('t' + i);
+                if (i === selectedIndex) el.classList.add('selected');
+                else el.classList.remove('selected');
+            }
+            document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
+        }
+
+        // Travel time input handling
+        document.getElementById('travelInput').addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\D/g, '').slice(0, 6);
+            let formatted = "";
+            for (let i = 0; i < val.length; i++) {
+                formatted += val[i];
+                if ((i === 1 || i === 3) && i !== val.length - 1) formatted += ":";
+            }
+            e.target.value = formatted;
+            travelTimes[selectedIndex - 1] = formatted;
+            localStorage.setItem('travelTimes', JSON.stringify(travelTimes));
+        });
+
+        // Main Loop
+        setInterval(() => {
+            const now = new Date();
+            const nowUTC = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+            document.getElementById('currentTime').innerText = nowUTC.toTimeString().split(' ')[0];
+
+            if (nextBeepTime) {
+                const diff = nextBeepTime - nowUTC.getTime();
+                if (diff > 0) {
+                    document.getElementById('countdown').style.display = 'block';
+                    const s = Math.floor(diff / 1000) % 60;
+                    const m = Math.floor(diff / 60000);
+                    document.getElementById('countdown').innerText = "BEEP IN: " + m.toString().padStart(2, '0') + ":" + s.toString().padStart(2, '0');
+                } else if (diff > -2000) {
+                    beep();
+                    nextBeepTime = null;
+                    document.getElementById('countdown').style.display = 'none';
+                } else {
+                    document.getElementById('countdown').style.display = 'none';
+                }
+            } else {
+                document.getElementById('countdown').style.display = 'none';
+            }
+        }, 500);
+
+        function beep() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 800;
+            osc.start();
+            setTimeout(() => osc.stop(), 800);
+        }
+    </script>
+</body>
+</html>
