@@ -25,7 +25,8 @@
         button { background: #00E5FF; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; cursor: pointer; color: black; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
         button:active { transform: scale(0.98); }
         .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; }
-        .setup-view { padding: 10px; }
+        .stealth-btn { background: #E91E63; margin-top: 10px; font-size: 0.8rem; color: white; padding: 12px; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
+        .stealth-btn.active { background: #4CAF50; }
     </style>
 </head>
 <body>
@@ -55,7 +56,9 @@
         </div>
 
         <div class="countdown" id="countdown">BEEP IN: 00:00</div>
-        <p style="color: #444; font-size: 0.7rem; margin-top: 20px;">Tap anywhere to enable sound</p>
+
+        <button id="stealthBtn" class="stealth-btn" onclick="toggleStealth()">ENABLE BACKGROUND SYNC</button>
+        <p style="color: #444; font-size: 0.6rem; margin-top: 10px;">Tap to keep timer alive while in game</p>
     </div>
 
     <script>
@@ -67,14 +70,7 @@
             appId: "1:181688095663:android:88b598bbb1bc174363555a"
         };
 
-        try {
-            firebase.initializeApp(firebaseConfig);
-            console.log("Firebase Initialized");
-        } catch (e) {
-            alert("Firebase Setup Error: Check your config settings.");
-            console.error(e);
-        }
-
+        firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
         let currentTeam = "";
@@ -82,25 +78,55 @@
         let selectedIndex = 1;
         let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
 
-        // Initialize from storage
+        let audioCtx = null;
+        let silentBuffer = null;
+        let isStealthEnabled = false;
+
         const storedTimes = localStorage.getItem('travelTimes');
         if (storedTimes) travelTimes = JSON.parse(storedTimes);
 
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                silentBuffer = audioCtx.createBuffer(1, 44100, 44100); // 1 second silent buffer
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function toggleStealth() {
+            initAudio();
+            isStealthEnabled = !isStealthEnabled;
+            const btn = document.getElementById('stealthBtn');
+
+            if (isStealthEnabled) {
+                btn.innerText = "BACKGROUND SYNC: ACTIVE";
+                btn.classList.add('active');
+                playSilentLoop();
+            } else {
+                btn.innerText = "ENABLE BACKGROUND SYNC";
+                btn.classList.remove('active');
+            }
+        }
+
+        function playSilentLoop() {
+            if (!isStealthEnabled || !audioCtx) return;
+            const source = audioCtx.createBufferSource();
+            source.buffer = silentBuffer;
+            source.connect(audioCtx.destination);
+            source.onended = playSilentLoop; // Infinite loop
+            source.start();
+        }
+
         function startApp() {
             currentTeam = document.getElementById('teamInput').value.toUpperCase();
-            if (!currentTeam) {
-                alert("Please enter a Squad Unit");
-                return;
-            }
+            if (!currentTeam) return;
 
             document.getElementById('setupView').style.display = 'none';
             document.getElementById('mainView').style.display = 'block';
             document.getElementById('headerTeam').innerText = "SQUAD " + currentTeam;
             document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
 
-            // Audio context start (User interaction required)
-            document.body.onclick = () => { if(window.AudioContext || window.webkitAudioContext) new (window.AudioContext || window.webkitAudioContext)(); };
-
+            initAudio();
             listenToFirebase();
         }
 
@@ -112,12 +138,9 @@
         function listenToFirebase() {
             database.ref('teams/' + currentTeam).on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (!data) {
-                    document.getElementById('statusText').innerText = "UNIT NOT FOUND";
-                    return;
-                }
+                if (!data) return;
 
-                const targetTime = data.targetTime; // "HH:mm:ss"
+                const targetTime = data.targetTime;
                 const targetIdx = data.targetIndex || 1;
                 const isStarted = data.isStarted;
                 const prepMins = data.prepMins || 1;
@@ -134,22 +157,15 @@
                     document.getElementById('statusText').innerText = "STANDBY - Waiting for Leader";
                     document.getElementById('statusText').classList.remove('active');
                 }
-            }, (error) => {
-                console.error("Database connection failed", error);
-                alert("Database connection failed. Check your Firebase Rules.");
             });
         }
 
         function calculateNextBeep(targetStr, travelStr, prep) {
             try {
                 const now = new Date();
-                const nowUTC = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
-
+                const targetDate = new Date(now.getTime());
                 const parts = targetStr.split(':');
-                const targetDate = new Date(nowUTC);
-                targetDate.setUTCHours(parts[0], parts[1], parts[2], 0);
-
-                if (targetDate.getTime() < nowUTC.getTime() - 600000) targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+                targetDate.setUTCHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0);
 
                 const tParts = travelStr.split(':');
                 if (tParts.length === 3) {
@@ -157,8 +173,8 @@
                     targetDate.setUTCMinutes(targetDate.getUTCMinutes() - parseInt(tParts[1]));
                     targetDate.setUTCSeconds(targetDate.getUTCSeconds() - parseInt(tParts[2]));
                 }
-
                 targetDate.setUTCMinutes(targetDate.getUTCMinutes() - prep);
+                if (targetDate.getTime() < now.getTime() - 600000) targetDate.setUTCDate(targetDate.getUTCDate() + 1);
                 nextBeepTime = targetDate.getTime();
             } catch (e) { console.error(e); }
         }
@@ -172,7 +188,6 @@
             document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
         }
 
-        // Travel time input handling
         document.getElementById('travelInput').addEventListener('input', (e) => {
             let val = e.target.value.replace(/\D/g, '').slice(0, 6);
             let formatted = "";
@@ -185,19 +200,20 @@
             localStorage.setItem('travelTimes', JSON.stringify(travelTimes));
         });
 
-        // Main Loop
         setInterval(() => {
             const now = new Date();
-            const nowUTC = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
-            document.getElementById('currentTime').innerText = nowUTC.toTimeString().split(' ')[0];
+            const h = now.getUTCHours().toString().padStart(2, '0');
+            const m = now.getUTCMinutes().toString().padStart(2, '0');
+            const s = now.getUTCSeconds().toString().padStart(2, '0');
+            document.getElementById('currentTime').innerText = `${h}:${m}:${s}`;
 
             if (nextBeepTime) {
-                const diff = nextBeepTime - nowUTC.getTime();
+                const diff = nextBeepTime - now.getTime();
                 if (diff > 0) {
                     document.getElementById('countdown').style.display = 'block';
-                    const s = Math.floor(diff / 1000) % 60;
-                    const m = Math.floor(diff / 60000);
-                    document.getElementById('countdown').innerText = "BEEP IN: " + m.toString().padStart(2, '0') + ":" + s.toString().padStart(2, '0');
+                    const secRem = Math.floor(diff / 1000) % 60;
+                    const minRem = Math.floor(diff / 60000);
+                    document.getElementById('countdown').innerText = "BEEP IN: " + minRem.toString().padStart(2, '0') + ":" + secRem.toString().padStart(2, '0');
                 } else if (diff > -2000) {
                     beep();
                     nextBeepTime = null;
@@ -211,7 +227,7 @@
         }, 500);
 
         function beep() {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) initAudio();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain);
