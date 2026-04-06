@@ -51,7 +51,7 @@
         input[type="text"] { width: 100%; background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; box-sizing: border-box; font-family: monospace; font-size: 1.1rem; text-align: center; margin-bottom: 15px; }
         button { background: #00E5FF; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; cursor: pointer; color: black; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
         button:active { transform: scale(0.98); }
-        .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; font-family: monospace; font-variant-numeric: tabular-nums; }
+        .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; }
         .stealth-btn { background: #E91E63; margin-top: 10px; font-size: 0.8rem; color: white; padding: 12px; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         .stealth-btn.active { background: #4CAF50; }
     </style>
@@ -246,18 +246,14 @@
                 const diff = nextBeepTime - now.getTime();
                 if (diff > 0) {
                     document.getElementById('countdown').style.display = 'block';
-                    const minRem = Math.floor(diff / 60000);
                     const secRem = Math.floor(diff / 1000) % 60;
-                    const msRem = Math.floor((diff % 1000) / 10);
-                    document.getElementById('countdown').innerText = "BEEP IN: " +
-                        minRem.toString().padStart(2, '0') + ":" +
-                        secRem.toString().padStart(2, '0') + "." +
-                        msRem.toString().padStart(2, '0');
+                    const minRem = Math.floor(diff / 60000);
+                    document.getElementById('countdown').innerText = "BEEP IN: " + minRem.toString().padStart(2, '0') + ":" + secRem.toString().padStart(2, '0');
                 } else if (diff > -2000) {
                     beep(); nextBeepTime = null; document.getElementById('countdown').style.display = 'none';
                 } else { document.getElementById('countdown').style.display = 'none'; }
             } else { document.getElementById('countdown').style.display = 'none'; }
-        }, 50);
+        }, 500);
 
         function beep() {
             if (!audioCtx) initAudio();
