@@ -10,9 +10,9 @@
     <style>
         body {
             background: #0A0A0A; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center;
         }
-        .container { width: 90%; max-width: 400px; background: #1A1A1A; padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .container { width: 90%; max-width: 400px; background: #1A1A1A; padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; }
         h1 { color: #00E5FF; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
         .clock { font-size: 3rem; font-weight: 900; font-family: monospace; color: #FFFFFF; margin: 10px 0; }
         .status { font-size: 0.8rem; color: #888; margin-bottom: 20px; }
@@ -54,6 +54,24 @@
         .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; font-family: monospace; font-variant-numeric: tabular-nums; }
         .stealth-btn { background: #E91E63; margin-top: 10px; font-size: 0.8rem; color: white; padding: 12px; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         .stealth-btn.active { background: #4CAF50; }
+
+        /* Docs Styles */
+        .help-btn { position: absolute; top: 15px; right: 15px; background: transparent; border: 1px solid #00E5FF; color: #00E5FF; padding: 5px 10px; border-radius: 8px; font-size: 0.6rem; cursor: pointer; width: auto; font-weight: bold; }
+        .help-btn:hover { background: rgba(0,229,255,0.1); }
+
+        #docsView { max-width: 600px; text-align: left; max-height: 85vh; overflow-y: auto; display: none; }
+        .docs-nav { display: flex; overflow-x: auto; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .doc-tab { background: #222; border: 1px solid #444; color: #888; padding: 8px 15px; border-radius: 8px; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+        .doc-tab.active { background: #00E5FF; color: black; border-color: #00E5FF; font-weight: bold; }
+
+        .doc-content { display: none; font-size: 0.9rem; line-height: 1.6; color: #CCC; }
+        .doc-content.active { display: block; }
+        .doc-content h2 { color: #00E5FF; font-size: 1.1rem; margin-top: 0; }
+        .doc-content ul { padding-left: 20px; }
+        .pro-tip { background: rgba(0, 229, 255, 0.05); border-left: 4px solid #00E5FF; padding: 15px; border-radius: 4px; margin: 15px 0; font-size: 0.85rem; }
+        .pro-tip strong { color: #00E5FF; }
+        code { font-family: monospace; background: #222; padding: 2px 4px; border-radius: 4px; color: #E91E63; }
+        .back-btn { background: #333; margin-bottom: 20px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -66,6 +84,7 @@
 </div>
 
 <div class="container" id="mainView" style="display: none;">
+    <button class="help-btn" onclick="showDocs()">HELP/DOCS</button>
     <h1 id="headerTeam">SQUAD UNIT</h1>
     <div class="clock" id="currentTime">00:00:00</div>
     <div class="status" id="statusText">Awaiting Target Data...</div>
@@ -93,6 +112,80 @@
 
     <button id="stealthBtn" class="stealth-btn" onclick="toggleStealth()">ENABLE BACKGROUND SYNC</button>
     <p style="color: #444; font-size: 0.6rem; margin-top: 10px;">Tap to keep timer alive while in game</p>
+</div>
+
+<div class="container" id="docsView">
+    <button class="back-btn" onclick="hideDocs()">BACK TO DASHBOARD</button>
+
+    <div class="docs-nav">
+        <div class="doc-tab active" onclick="switchDoc(1)">Web Guide</div>
+        <div class="doc-tab" onclick="switchDoc(2)">App Guide</div>
+        <div class="doc-tab" onclick="switchDoc(3)">Install Guide</div>
+        <div class="doc-tab" onclick="switchDoc(4)">Bug Report</div>
+        <div class="doc-tab" onclick="switchDoc(5)">Field Test</div>
+    </div>
+
+    <div id="doc1" class="doc-content active">
+        <h2>Web Dashboard Guide</h2>
+        <p>The Web Dashboard is your secondary sync terminal for desktop use.</p>
+        <ul>
+            <li><strong>Squad Unit:</strong> Link your device to the leader by entering the same Squad ID (e.g., <code>T1</code>).</li>
+            <li><strong>Compass Selection:</strong> Automatically syncs your target direction and travel time from the leader's app.</li>
+            <li><strong>Travel Time:</strong> Manual travel time inputs are saved locally in your browser for future sessions.</li>
+        </ul>
+        <div class="pro-tip">
+            <strong>Pro-Tip:</strong> Enable <strong>Background Sync</strong> to keep the high-precision audio engine active while you are switched to your game window.
+        </div>
+    </div>
+
+    <div id="doc2" class="doc-content">
+        <h2>Android App Guide</h2>
+        <p>The mobile app is the primary tactical interface for Squad Leaders.</p>
+        <ul>
+            <li><strong>Atomic NTP Sync:</strong> The app connects to <code>pool.ntp.org</code> to bypass local clock drift and provide sub-second accuracy.</li>
+            <li><strong>Floating Overlay:</strong> Tap the "Grant Permission" button to enable the HUD that stays visible inside your game.</li>
+            <li><strong>Leader Mode:</strong> When active, your <code>Target UTC</code> and <code>Prep Minutes</code> are broadcasted to all linked squad members.</li>
+        </ul>
+        <div class="pro-tip">
+            <strong>Pro-Tip:</strong> Drag the <strong>RALLY</strong> button to any corner of your screen to prevent it from blocking your game's menu buttons.
+        </div>
+    </div>
+
+    <div id="doc3" class="doc-content">
+        <h2>APK Install Guide</h2>
+        <p>Follow these steps to ensure the app runs with full permissions:</p>
+        <ol>
+            <li>Download the latest APK from the project source.</li>
+            <li>Open the file and allow <strong>"Install from Unknown Sources"</strong> in your browser settings.</li>
+            <li>If <strong>Play Protect</strong> shows a warning, select "Install Anyway" (the app uses sensitive overlay permissions).</li>
+            <li><strong>Battery Optimization:</strong> Search for "Battery Optimization" in your phone settings and set this app to <strong>"Don't Optimize"</strong>.</li>
+        </ol>
+    </div>
+
+    <div id="doc4" class="doc-content">
+        <h2>Bug Reporting Guide</h2>
+        <p>If you encounter sync delays or audio issues, please use the template below in the Discord support channel.</p>
+        <div class="pro-tip">
+            <code>
+            [SYNC BUG REPORT]<br>
+            Device: (e.g., Pixel 7)<br>
+            Connection: (Wi-Fi/5G)<br>
+            Squad ID: (e.g., T1)<br>
+            Issue: (Delayed Beep / Clock Desync)<br>
+            Offset Shown: (Check Help/Docs)
+            </code>
+        </div>
+    </div>
+
+    <div id="doc5" class="doc-content">
+        <h2>Field Test Overview</h2>
+        <p>Best practices for high-stakes coordination:</p>
+        <ul>
+            <li><strong>Discord Settings:</strong> Ensure your "Media Volume" is at 100%. The beep is optimized to cut through voice chat but requires media headroom.</li>
+            <li><strong>Headset Latency:</strong> Bluetooth headsets have a "wake-up" delay. Background Sync keeps the connection "hot" to prevent missed beeps.</li>
+            <li><strong>Atomic Verification:</strong> Squad members should call out the last 3 seconds (3.. 2.. 1..) to verify everyone is within the same 50ms window.</li>
+        </ul>
+    </div>
 </div>
 
 <script>
@@ -277,6 +370,27 @@
 
         osc.start();
         setTimeout(() => osc.stop(), 1000);
+    }
+
+    function showDocs() {
+        document.getElementById('mainView').style.display = 'none';
+        document.getElementById('docsView').style.display = 'block';
+    }
+
+    function hideDocs() {
+        document.getElementById('docsView').style.display = 'none';
+        document.getElementById('mainView').style.display = 'block';
+    }
+
+    function switchDoc(n) {
+        document.querySelectorAll('.doc-tab').forEach((tab, index) => {
+            if (index === n - 1) tab.classList.add('active');
+            else tab.classList.remove('active');
+        });
+        document.querySelectorAll('.doc-content').forEach((content, index) => {
+            if (index === n - 1) content.classList.add('active');
+            else content.classList.remove('active');
+        });
     }
 </script>
 </body>
