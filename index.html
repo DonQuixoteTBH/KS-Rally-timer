@@ -45,11 +45,11 @@
         <div class="target-section">
             <p style="color: #666; font-size: 0.7rem; margin-bottom: 10px; text-transform: uppercase;">Your Travel Times (HH:MM:SS)</p>
             <div class="target-inputs" id="targetLabels">
-                <div class="target-input" id="t1">T1</div>
-                <div class="target-input" id="t2">T2</div>
-                <div class="target-input" id="t3">T3</div>
-                <div class="target-input" id="t4">T4</div>
-                <div class="target-input" id="t5">T5</div>
+                <div class="target-input" id="t1" onclick="selectTarget(1)">T1</div>
+                <div class="target-input" id="t2" onclick="selectTarget(2)">T2</div>
+                <div class="target-input" id="t3" onclick="selectTarget(3)">T3</div>
+                <div class="target-input" id="t4" onclick="selectTarget(4)">T4</div>
+                <div class="target-input" id="t5" onclick="selectTarget(5)">T5</div>
             </div>
             <input type="text" id="travelInput" placeholder="00:00:00" maxlength="8">
         </div>
@@ -59,16 +59,22 @@
     </div>
 
     <script>
-        // CONFIG: REPLACE THE "databaseURL" BELOW with the link from your Firebase Console
         const firebaseConfig = {
             apiKey: "AIzaSyAVRDYoTzgL9JT3CsCWu6Dm_JP8ppyndhU",
-            databaseURL: "https://console.firebase.google.com/project/ks-rally-timer/database/ks-rally-timer-default-rtdb/data/~2F?fb_gclid=CjwKCAjw1N7NBhAoEiwAcPchp0NmWgaq8pHmJbSfth7afl3099XQTaX3gGmETpeJgK0v67mPOG1luhoCBBcQAvD_BwE&fb_utm_campaign=Cloud-SS-DR-Firebase-FY26-global-gsem-1713590&fb_utm_content=text-ad&fb_utm_medium=cpc&fb_utm_source=google&fb_utm_term=KW_firebase",
+            databaseURL: "https://ks-rally-timer-default-rtdb.firebaseio.com/",
             projectId: "ks-rally-timer",
             storageBucket: "ks-rally-timer.firebasestorage.app",
             appId: "1:181688095663:android:88b598bbb1bc174363555a"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase Initialized");
+        } catch (e) {
+            alert("Firebase Setup Error: Check your config settings.");
+            console.error(e);
+        }
+
         const database = firebase.database();
 
         let currentTeam = "";
@@ -82,7 +88,10 @@
 
         function startApp() {
             currentTeam = document.getElementById('teamInput').value.toUpperCase();
-            if (!currentTeam) return;
+            if (!currentTeam) {
+                alert("Please enter a Squad Unit");
+                return;
+            }
 
             document.getElementById('setupView').style.display = 'none';
             document.getElementById('mainView').style.display = 'block';
@@ -95,10 +104,18 @@
             listenToFirebase();
         }
 
+        function selectTarget(idx) {
+            selectedIndex = idx;
+            updateTargetUI();
+        }
+
         function listenToFirebase() {
             database.ref('teams/' + currentTeam).on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (!data) return;
+                if (!data) {
+                    document.getElementById('statusText').innerText = "UNIT NOT FOUND";
+                    return;
+                }
 
                 const targetTime = data.targetTime; // "HH:mm:ss"
                 const targetIdx = data.targetIndex || 1;
@@ -117,6 +134,9 @@
                     document.getElementById('statusText').innerText = "STANDBY - Waiting for Leader";
                     document.getElementById('statusText').classList.remove('active');
                 }
+            }, (error) => {
+                console.error("Database connection failed", error);
+                alert("Database connection failed. Check your Firebase Rules.");
             });
         }
 
