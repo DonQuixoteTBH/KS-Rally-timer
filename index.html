@@ -111,6 +111,7 @@
         let nextBeepTime = null;
         let selectedIndex = 5;
         let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
+        let serverTimeOffset = 0;
 
         let audioCtx = null;
         let silentBuffer = null;
@@ -118,6 +119,11 @@
 
         const storedTimes = localStorage.getItem('travelTimes');
         if (storedTimes) travelTimes = JSON.parse(storedTimes);
+
+        database.ref('.info/serverTimeOffset').on('value', (snapshot) => {
+            serverTimeOffset = snapshot.val() || 0;
+            console.log("Server time offset updated:", serverTimeOffset);
+        });
 
         function initAudio() {
             if (!audioCtx) {
@@ -193,7 +199,7 @@
 
         function calculateNextBeep(targetStr, travelStr, prep) {
             try {
-                const now = new Date();
+                const now = new Date(Date.now() + serverTimeOffset);
                 const targetDate = new Date(now.getTime());
                 const parts = targetStr.split(':');
                 targetDate.setUTCHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0);
@@ -231,7 +237,7 @@
         });
 
         setInterval(() => {
-            const now = new Date();
+            const now = new Date(Date.now() + serverTimeOffset);
             const h = now.getUTCHours().toString().padStart(2, '0');
             const m = now.getUTCMinutes().toString().padStart(2, '0');
             const s = now.getUTCSeconds().toString().padStart(2, '0');
