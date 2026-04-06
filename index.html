@@ -51,7 +51,7 @@
         input[type="text"] { width: 100%; background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; box-sizing: border-box; font-family: monospace; font-size: 1.1rem; text-align: center; margin-bottom: 15px; }
         button { background: #00E5FF; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; cursor: pointer; color: black; font-size: 1rem; text-transform: uppercase; transition: transform 0.1s; }
         button:active { transform: scale(0.98); }
-        .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; }
+        .countdown { font-size: 1.5rem; color: #E91E63; font-weight: bold; margin-top: 15px; display: none; font-family: monospace; font-variant-numeric: tabular-nums; }
         .stealth-btn { background: #E91E63; margin-top: 10px; font-size: 0.8rem; color: white; padding: 12px; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         .stealth-btn.active { background: #4CAF50; }
     </style>
@@ -111,6 +111,7 @@
         let nextBeepTime = null;
         let selectedIndex = 5;
         let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
+        let serverTimeOffset = 0;
 
         let audioCtx = null;
         let silentBuffer = null;
@@ -118,6 +119,11 @@
 
         const storedTimes = localStorage.getItem('travelTimes');
         if (storedTimes) travelTimes = JSON.parse(storedTimes);
+
+        database.ref('.info/serverTimeOffset').on('value', (snapshot) => {
+            serverTimeOffset = snapshot.val() || 0;
+            console.log("Server time offset updated:", serverTimeOffset);
+        });
 
         function initAudio() {
             if (!audioCtx) {
@@ -143,6 +149,7 @@
 
         function playSilentLoop() {
             if (!isStealthEnabled || !audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const source = audioCtx.createBufferSource();
             source.buffer = silentBuffer;
             source.connect(audioCtx.destination);
@@ -193,7 +200,7 @@
 
         function calculateNextBeep(targetStr, travelStr, prep) {
             try {
-                const now = new Date();
+                const now = new Date(Date.now() + serverTimeOffset);
                 const targetDate = new Date(now.getTime());
                 const parts = targetStr.split(':');
                 targetDate.setUTCHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0);
@@ -231,7 +238,7 @@
         });
 
         setInterval(() => {
-            const now = new Date();
+            const now = new Date(Date.now() + serverTimeOffset);
             const h = now.getUTCHours().toString().padStart(2, '0');
             const m = now.getUTCMinutes().toString().padStart(2, '0');
             const s = now.getUTCSeconds().toString().padStart(2, '0');
@@ -240,22 +247,36 @@
                 const diff = nextBeepTime - now.getTime();
                 if (diff > 0) {
                     document.getElementById('countdown').style.display = 'block';
-                    const secRem = Math.floor(diff / 1000) % 60;
                     const minRem = Math.floor(diff / 60000);
-                    document.getElementById('countdown').innerText = "BEEP IN: " + minRem.toString().padStart(2, '0') + ":" + secRem.toString().padStart(2, '0');
+                    const secRem = Math.floor(diff / 1000) % 60;
+                    const msRem = Math.floor((diff % 1000) / 10);
+                    document.getElementById('countdown').innerText = "BEEP IN: " +
+                        minRem.toString().padStart(2, '0') + ":" +
+                        secRem.toString().padStart(2, '0') + "." +
+                        msRem.toString().padStart(2, '0');
                 } else if (diff > -2000) {
                     beep(); nextBeepTime = null; document.getElementById('countdown').style.display = 'none';
                 } else { document.getElementById('countdown').style.display = 'none'; }
             } else { document.getElementById('countdown').style.display = 'none'; }
-        }, 500);
+        }, 50);
 
         function beep() {
             if (!audioCtx) initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.frequency.value = 800; osc.start();
-            setTimeout(() => osc.stop(), 800);
+
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+
+            gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(1.0, audioCtx.currentTime + 0.01);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            setTimeout(() => osc.stop(), 1000);
         }
     </script>
 </body>
