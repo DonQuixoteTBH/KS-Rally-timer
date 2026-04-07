@@ -422,6 +422,13 @@ REPRO STEPS:
         console.log("Server time offset updated:", serverTimeOffset);
     });
 
+    window.addEventListener('load', () => {
+        if (window.location.hash === '#docs') {
+            document.getElementById('setupView').style.display = 'none';
+            document.getElementById('docsView').style.display = 'block';
+        }
+    });
+
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
