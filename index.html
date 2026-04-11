@@ -26,9 +26,15 @@
         .container { width: 90%; max-width: 400px; background: #1A1A1A; padding: 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; }
         h1 { color: #00E5FF; font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
         .clock { font-size: 3rem; font-weight: 900; font-family: monospace; color: #FFFFFF; margin: 10px 0; }
-        .status { font-size: 0.8rem; color: #888; margin-bottom: 20px; }
-        .active { color: #00E5FF !important; }
+        .status { font-size: 0.8rem; color: #888; margin-bottom: 20px; transition: color 0.3s; }
+        .status.active-leader { color: #00E5FF !important; }
+        .status.active-mission { color: #E91E63 !important; font-weight: bold; }
         .target-section { margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
+
+        /* Squad Selection Styles */
+        .squad-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+        .squad-btn { background: #222; border: 1px solid #444; color: #888; padding: 15px; border-radius: 12px; cursor: pointer; flex: 1; font-weight: 900; transition: all 0.2s; }
+        .squad-btn.selected-team { background: rgba(0, 229, 255, 0.1); border-color: #00E5FF; color: #00E5FF; box-shadow: 0 0 15px rgba(0,229,255,0.2); }
 
         /* Compass Layout */
         .target-inputs {
@@ -108,8 +114,11 @@
 
 <div class="container" id="setupView">
     <h1>Sync Access</h1>
-    <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Enter your squad unit to begin.</p>
-    <input type="text" id="teamInput" placeholder="SQUAD UNIT (e.g. T1)" value="T1">
+    <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Select your squad unit to begin.</p>
+    <div class="squad-selector">
+        <button id="btnT1" class="squad-btn" onclick="selectTeam('T1')">SQUAD T1</button>
+        <button id="btnT2" class="squad-btn" onclick="selectTeam('T2')">SQUAD T2</button>
+    </div>
     <button onclick="startApp()">Link Unit</button>
     <button id="installBtn" class="install-btn" onclick="installApp()">INSTALL KS RALLY TIMER</button>
 </div>
@@ -511,9 +520,17 @@ REPRO STEPS:
         source.start();
     }
 
+    function selectTeam(team) {
+        currentTeam = team;
+        document.getElementById('btnT1').classList.toggle('selected-team', team === 'T1');
+        document.getElementById('btnT2').classList.toggle('selected-team', team === 'T2');
+    }
+
     function startApp() {
-        currentTeam = document.getElementById('teamInput').value.toUpperCase();
-        if (!currentTeam) return;
+        if (!currentTeam) {
+            alert("Please select a SQUAD UNIT first.");
+            return;
+        }
         document.getElementById('setupView').style.display = 'none';
         document.getElementById('mainView').style.display = 'block';
         document.getElementById('headerTeam').innerText = "SQUAD " + currentTeam;
@@ -525,6 +542,12 @@ REPRO STEPS:
     function toggleLeaderMode() {
         const isLeader = document.getElementById('leaderToggle').checked;
         document.getElementById('leaderPanel').style.display = isLeader ? 'block' : 'none';
+
+        if (currentTeam) {
+            database.ref('teams/' + currentTeam).update({
+                leaderActive: isLeader
+            });
+        }
     }
 
     function setPrep(mins) {
@@ -569,19 +592,26 @@ REPRO STEPS:
             const targetIdx = data.targetIndex || 5;
             const isStarted = data.isStarted;
             const prepMins = data.prepMins || 1;
+            const leaderActive = data.leaderActive || false;
 
             selectedIndex = targetIdx;
             updateTargetUI();
 
+            const statusEl = document.getElementById('statusText');
+            statusEl.classList.remove('active-leader', 'active-mission');
+
             if (isStarted && targetTime) {
                 calculateNextBeep(targetTime, travelTimes[selectedIndex - 1], prepMins);
                 const names = ["NORTH", "SOUTH", "EAST", "WEST", "CASTLE"];
-                document.getElementById('statusText').innerText = "LINKED - " + names[selectedIndex-1];
-                document.getElementById('statusText').classList.add('active');
+                statusEl.innerText = "MISSION ACTIVE - " + names[selectedIndex-1];
+                statusEl.classList.add('active-mission');
+            } else if (leaderActive) {
+                nextBeepTime = null;
+                statusEl.innerText = "LEADER CONNECTED";
+                statusEl.classList.add('active-leader');
             } else {
                 nextBeepTime = null;
-                document.getElementById('statusText').innerText = "STANDBY - Waiting for Leader";
-                document.getElementById('statusText').classList.remove('active');
+                statusEl.innerText = "AWAITING LEADER";
             }
         });
     }
