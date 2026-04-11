@@ -584,6 +584,16 @@ REPRO STEPS:
 
     function selectTarget(idx) {
         selectedIndex = idx;
+
+        // Leader Sync logic
+        const isLeader = document.getElementById('leaderToggle').checked;
+        if (isLeader && currentTeam) {
+            console.log("Leader broadcasting new target: " + idx);
+            database.ref('teams/' + currentTeam).update({
+                targetIndex: idx
+            }).catch(error => alert("Broadcast failed: " + error.message));
+        }
+
         updateTargetUI();
     }
 
