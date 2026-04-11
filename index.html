@@ -522,6 +522,7 @@ REPRO STEPS:
 
     function selectTeam(team) {
         currentTeam = team;
+        console.log("Team Selected: " + currentTeam);
         document.getElementById('btnT1').classList.toggle('selected-team', team === 'T1');
         document.getElementById('btnT2').classList.toggle('selected-team', team === 'T2');
     }
@@ -541,12 +542,14 @@ REPRO STEPS:
 
     function toggleLeaderMode() {
         const isLeader = document.getElementById('leaderToggle').checked;
+        console.log("Toggle Fired for team: " + currentTeam);
         document.getElementById('leaderPanel').style.display = isLeader ? 'block' : 'none';
 
         if (currentTeam) {
             database.ref('teams/' + currentTeam).update({
                 leaderActive: isLeader
-            });
+            }).then(() => console.log("Firebase Update Successful"))
+              .catch(error => alert("Firebase Error: " + error.message));
         }
     }
 
@@ -588,6 +591,7 @@ REPRO STEPS:
         database.ref('teams/' + currentTeam).on('value', (snapshot) => {
             const data = snapshot.val();
             if (!data) return;
+            console.log("Data Received from Firebase:", data);
             const targetTime = data.targetTime;
             const targetIdx = data.targetIndex || 5;
             const isStarted = data.isStarted;
@@ -602,8 +606,7 @@ REPRO STEPS:
 
             if (isStarted && targetTime) {
                 calculateNextBeep(targetTime, travelTimes[selectedIndex - 1], prepMins);
-                const names = ["NORTH", "SOUTH", "EAST", "WEST", "CASTLE"];
-                statusEl.innerText = "MISSION ACTIVE - " + names[selectedIndex-1];
+                statusEl.innerText = "MISSION ACTIVE";
                 statusEl.classList.add('active-mission');
             } else if (leaderActive) {
                 nextBeepTime = null;
@@ -611,7 +614,7 @@ REPRO STEPS:
                 statusEl.classList.add('active-leader');
             } else {
                 nextBeepTime = null;
-                statusEl.innerText = "AWAITING LEADER";
+                statusEl.innerText = "AWAITING TARGET DATA";
             }
         });
     }
