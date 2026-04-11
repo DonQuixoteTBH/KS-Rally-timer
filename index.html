@@ -55,6 +55,21 @@
         .stealth-btn { background: #E91E63; margin-top: 10px; font-size: 0.8rem; color: white; padding: 12px; border: none; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         .stealth-btn.active { background: #4CAF50; }
 
+        /* Leader Styles */
+        .leader-toggle-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #00E5FF; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        #leaderPanel { margin-top: 20px; border: 1px solid rgba(0,229,255,0.3); padding: 15px; border-radius: 15px; display: none; background: rgba(0,229,255,0.02); }
+        .prep-selector { display: flex; gap: 10px; justify-content: center; margin-bottom: 15px; }
+        .prep-btn { background: #222; border: 1px solid #444; color: #888; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; flex: 1; font-weight: bold; }
+        .prep-btn.selected { background: #00E5FF; color: black; border-color: #00E5FF; }
+        .reset-btn { background: #E91E63; margin-top: 10px; font-size: 0.7rem; color: white; padding: 10px; }
+
         /* Docs Styles */
         .help-btn { position: absolute; top: 15px; right: 15px; background: transparent; border: 1px solid #00E5FF; color: #00E5FF; padding: 5px 10px; border-radius: 8px; font-size: 0.6rem; cursor: pointer; width: auto; font-weight: bold; }
         .help-btn:hover { background: rgba(0,229,255,0.1); }
@@ -88,8 +103,28 @@
 <div class="container" id="mainView" style="display: none;">
     <button class="help-btn" onclick="showDocs()">HELP/DOCS</button>
     <h1 id="headerTeam">SQUAD UNIT</h1>
+
+    <div class="leader-toggle-container">
+        <span style="font-size: 0.7rem; font-weight: bold; color: #888; letter-spacing: 1px;">LEADER MODE</span>
+        <label class="switch">
+            <input type="checkbox" id="leaderToggle" onchange="toggleLeaderMode()">
+            <span class="slider"></span>
+        </label>
+    </div>
+
     <div class="clock" id="currentTime">00:00:00</div>
     <div class="status" id="statusText">Awaiting Target Data...</div>
+
+    <div id="leaderPanel">
+        <p style="color: #00E5FF; font-size: 0.6rem; margin-bottom: 10px; text-transform: uppercase; font-weight: bold;">Mission Configuration</p>
+        <input type="text" id="missionInput" placeholder="TARGET UTC (HH:MM:SS)" maxlength="8">
+        <div class="prep-selector">
+            <div class="prep-btn selected" id="prep1" onclick="setPrep(1)">1M PREP</div>
+            <div class="prep-btn" id="prep5" onclick="setPrep(5)">5M PREP</div>
+        </div>
+        <button onclick="initiateSquadSync()">Initiate Squad Sync</button>
+        <button class="reset-btn" onclick="clearMission()">Clear Mission</button>
+    </div>
 
     <div class="target-section">
         <p style="color: #666; font-size: 0.7rem; margin-bottom: 15px; text-transform: uppercase;">Compass Selection</p>
@@ -290,7 +325,7 @@
         <p>Android prevents the installation of apps from outside the Google Play Store by default. You must authorize your browser or file manager to perform the install.</p>
         <ol>
             <li>Tap the app-debug.apk file to open it.</li>
-            <li>A security prompt will likely appear saying: "For your security, your phone is not allowed to install unknown apps from this source."</li>
+            <li>a security prompt will likely appear saying: "For your security, your phone is not allowed to install unknown apps from this source."</li>
             <li>Tap Settings.</li>
             <li>Toggle the switch for <strong>Allow from this source</strong> to ON.</li>
             <li>Press the Back button. You should now see a prompt asking if you want to install the app.</li>
@@ -409,6 +444,7 @@ REPRO STEPS:
     let selectedIndex = 5;
     let travelTimes = ["00:00:00", "00:00:00", "00:00:00", "00:00:00", "00:00:00"];
     let serverTimeOffset = 0;
+    let selectedPrepMins = 1;
 
     let audioCtx = null;
     let silentBuffer = null;
@@ -472,6 +508,40 @@ REPRO STEPS:
         listenToFirebase();
     }
 
+    function toggleLeaderMode() {
+        const isLeader = document.getElementById('leaderToggle').checked;
+        document.getElementById('leaderPanel').style.display = isLeader ? 'block' : 'none';
+    }
+
+    function setPrep(mins) {
+        selectedPrepMins = mins;
+        document.getElementById('prep1').classList.toggle('selected', mins === 1);
+        document.getElementById('prep5').classList.toggle('selected', mins === 5);
+    }
+
+    function initiateSquadSync() {
+        if (!currentTeam) return;
+        const targetTime = document.getElementById('missionInput').value;
+        if (!targetTime || targetTime.length < 8) {
+            alert("Please enter a valid HH:MM:SS Target Time");
+            return;
+        }
+
+        database.ref('teams/' + currentTeam).update({
+            targetTime: targetTime,
+            targetIndex: selectedIndex,
+            prepMins: selectedPrepMins,
+            isStarted: true
+        });
+    }
+
+    function clearMission() {
+        if (!currentTeam) return;
+        database.ref('teams/' + currentTeam).update({
+            isStarted: false
+        });
+    }
+
     function selectTarget(idx) {
         selectedIndex = idx;
         updateTargetUI();
@@ -529,7 +599,8 @@ REPRO STEPS:
         document.getElementById('travelInput').value = travelTimes[selectedIndex - 1];
     }
 
-    document.getElementById('travelInput').addEventListener('input', (e) => {
+    // Auto-formatting helper for time inputs
+    function formatTimeInput(e) {
         let val = e.target.value.replace(/\D/g, '').slice(0, 6);
         let formatted = "";
         for (let i = 0; i < val.length; i++) {
@@ -537,8 +608,17 @@ REPRO STEPS:
             if ((i === 1 || i === 3) && i !== val.length - 1) formatted += ":";
         }
         e.target.value = formatted;
+        return formatted;
+    }
+
+    document.getElementById('travelInput').addEventListener('input', (e) => {
+        const formatted = formatTimeInput(e);
         travelTimes[selectedIndex - 1] = formatted;
         localStorage.setItem('travelTimes', JSON.stringify(travelTimes));
+    });
+
+    document.getElementById('missionInput').addEventListener('input', (e) => {
+        formatTimeInput(e);
     });
 
     setInterval(() => {
